@@ -69,8 +69,8 @@
             // --- CARREGAMENTO E PROCESSAMENTO DOS DADOS ---
             // Usamos Promise.all para carregar o áudio e o JSON simultaneamente
             Promise.all([
-                fetch('/audio.full.json').then(res => res.json()),
-                fetch('/audio.wav').then(res => res.blob())
+                fetch('audio.full.json').then(res => res.json()),
+                fetch('audio.wav').then(res => res.blob())
             ]).then(([transcriptionData, audioBlob]) => {
                 loadingIndicator.classList.add('hidden'); // Esconde o indicador de carregamento
 
