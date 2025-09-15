@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treino de inglês | Exercício 001 - Donald Trump</title>
+    <!-- Incluindo o Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilo customizado para uma transição suave na cor do texto */
+        .word-span {
+            transition: color 0.2s ease-in-out, font-weight 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div class="container mx-auto p-4 sm:p-8 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-xl overflow-hidden">
+            <header class="p-6 border-b border-gray-200 bg-gray-50">
+                <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">Treino de inglês | Exercício 001 - Donald Trump</h1>
+                <p class="text-gray-600 mt-1">Treinamento frase por frase.</p>
+            </header>
+            
+            <!-- O elemento de áudio que será controlado via JavaScript -->
+            <!-- Os controles padrões do navegador estão ocultos (hidden) -->
+            <audio id="audio-player" class="hidden"></audio>
+            
+            <!-- Indicador de carregamento, exibido enquanto os arquivos são baixados -->
+            <div id="loading" class="p-8 text-center text-gray-500">
+                <div class="flex justify-center items-center">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Carregando áudio e transcrição, por favor aguarde...</span>
+                </div>
+            </div>
+
+            <!-- O container onde a transcrição será renderizada dinamicamente -->
+            <div id="transcription-container" class="divide-y divide-gray-200">
+                <!-- As sentenças serão injetadas aqui pelo JavaScript -->
+            </div>
+        </div>
+        <footer class="text-center text-sm text-gray-500 mt-6">
+            <p>Edgar Lima.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- ELEMENTOS DO DOM ---
+            const audioPlayer = document.getElementById('audio-player');
+            const transcriptionContainer = document.getElementById('transcription-container');
+            const loadingIndicator = document.getElementById('loading');
+
+            // --- ESTADO DA APLICAÇÃO ---
+            let sentences = []; // Armazenará todas as sentenças processadas
+            let currentPlayingIndex = null; // Índice da sentença que está tocando
+
+            // --- ÍCONES SVG PARA OS BOTÕES ---
+            const playIconSVG = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            `;
+            const pauseIconSVG = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            `;
+
+            // --- CARREGAMENTO E PROCESSAMENTO DOS DADOS ---
+            // Usamos Promise.all para carregar o áudio e o JSON simultaneamente
+            Promise.all([
+                fetch('audio.full.json').then(res => res.json()),
+                fetch('audio.wav').then(res => res.blob())
+            ]).then(([transcriptionData, audioBlob]) => {
+                loadingIndicator.classList.add('hidden'); // Esconde o indicador de carregamento
+
+                // Cria uma URL para o arquivo de áudio e a atribui ao player
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioPlayer.src = audioUrl;
+                
+                // Extrai a lista de palavras e parágrafos do JSON
+                const allWords = transcriptionData.results.channels[0].alternatives[0].words;
+                const paragraphs = transcriptionData.results.channels[0].alternatives[0].paragraphs.paragraphs;
+
+                // Processa os parágrafos para criar uma lista plana de sentenças
+                let sentenceCounter = 0;
+                paragraphs.forEach(para => {
+                    para.sentences.forEach(sentenceData => {
+                        // Filtra a lista de palavras para encontrar apenas as que pertencem a esta sentença
+                        const sentenceWords = allWords.filter(word =>
+                            word.start >= sentenceData.start && word.end <= sentenceData.end
+                        );
+                        sentences.push({
+                            id: sentenceCounter++,
+                            text: sentenceData.text,
+                            start: sentenceData.start,
+                            end: sentenceData.end,
+                            words: sentenceWords
+                        });
+                    });
+                });
+
+                // Renderiza a transcrição na tela
+                renderTranscription();
+
+            }).catch(error => {
+                console.error("Erro ao carregar os arquivos:", error);
+                loadingIndicator.innerHTML = "<p class='text-red-500'>Falha ao carregar os arquivos de áudio e transcrição. Verifique o console para mais detalhes.</p>";
+            });
+
+            // --- FUNÇÕES DE RENDERIZAÇÃO E UI ---
+
+            /**
+             * Cria os elementos HTML para cada sentença e os insere na página.
+             */
+            function renderTranscription() {
+                transcriptionContainer.innerHTML = ''; // Limpa o container
+                sentences.forEach((sentence, index) => {
+                    const sentenceEl = document.createElement('div');
+                    sentenceEl.className = 'flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors duration-200';
+                    sentenceEl.dataset.index = index;
+
+                    const button = document.createElement('button');
+                    button.className = 'flex-shrink-0 p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-110';
+                    button.innerHTML = playIconSVG;
+                    button.onclick = () => toggleSentencePlayback(index);
+                    sentenceEl.appendChild(button);
+
+                    const textContainer = document.createElement('p');
+                    textContainer.className = 'text-lg text-gray-800 leading-relaxed';
+                    textContainer.id = `sentence-${index}`;
+
+                    // Cria um <span> para cada palavra para que possamos estilizá-la individualmente
+                    sentence.words.forEach((word, wordIndex) => {
+                        const wordSpan = document.createElement('span');
+                        wordSpan.className = 'word-span';
+                        wordSpan.textContent = word.punctuated_word + ' ';
+                        wordSpan.id = `word-${index}-${wordIndex}`;
+                        textContainer.appendChild(wordSpan);
+                    });
+
+                    sentenceEl.appendChild(textContainer);
+                    transcriptionContainer.appendChild(sentenceEl);
+                });
+            }
+            
+            /**
+             * Alterna o estado de um botão entre "play" e "pause".
+             * @param {number} index - O índice da sentença.
+             * @param {'playing' | 'paused'} state - O novo estado do botão.
+             */
+            function updateButtonState(index, state) {
+                const button = transcriptionContainer.querySelector(`div[data-index='${index}'] button`);
+                if (!button) return;
+                
+                if (state === 'playing') {
+                    button.innerHTML = pauseIconSVG;
+                    button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                    button.classList.add('bg-orange-500', 'hover:bg-orange-600');
+                } else {
+                    button.innerHTML = playIconSVG;
+                    button.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+                    button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                }
+            }
+            
+            /**
+             * Remove o destaque de todas as palavras de uma sentença.
+             * @param {number} sentenceIndex - O índice da sentença.
+             */
+            function clearHighlights(sentenceIndex) {
+                 if (sentenceIndex === null || !sentences[sentenceIndex]) return;
+                 sentences[sentenceIndex].words.forEach((word, wordIndex) => {
+                    const wordSpan = document.getElementById(`word-${sentenceIndex}-${wordIndex}`);
+                    if(wordSpan) {
+                        wordSpan.classList.remove('text-orange-700', 'font-bold');
+                    }
+                 });
+            }
+
+            // --- FUNÇÕES DE CONTROLE DE ÁUDIO ---
+
+            /**
+             * Inicia ou pausa a reprodução de uma sentença.
+             * @param {number} index - O índice da sentença a ser tocada/pausada.
+             */
+            function toggleSentencePlayback(index) {
+                // Se a sentença clicada já estiver tocando, pausa
+                if (currentPlayingIndex === index) {
+                    audioPlayer.pause();
+                    return;
+                }
+
+                // Se outra sentença estiver tocando, para e reseta seu estado
+                if (currentPlayingIndex !== null) {
+                    clearHighlights(currentPlayingIndex);
+                    updateButtonState(currentPlayingIndex, 'paused');
+                }
+
+                currentPlayingIndex = index;
+                const sentence = sentences[index];
+                audioPlayer.currentTime = sentence.start;
+                audioPlayer.play();
+                updateButtonState(index, 'playing');
+            }
+
+            // --- EVENT LISTENERS DO PLAYER DE ÁUDIO ---
+
+            // Evento disparado continuamente enquanto o áudio está tocando
+            audioPlayer.addEventListener('timeupdate', () => {
+                if (currentPlayingIndex === null) return;
+
+                const sentence = sentences[currentPlayingIndex];
+                const currentTime = audioPlayer.currentTime;
+
+                // Para a reprodução se o tempo atual ultrapassar o fim da sentença
+                if (currentTime >= sentence.end) {
+                    audioPlayer.pause(); // O evento 'pause' cuidará do resto
+                    return;
+                }
+
+                // Itera sobre as palavras da sentença atual para destacar a correta
+                sentence.words.forEach((word, wordIndex) => {
+                    const wordSpan = document.getElementById(`word-${currentPlayingIndex}-${wordIndex}`);
+                    if (wordSpan) {
+                         if (currentTime >= word.start && currentTime < word.end) {
+                            wordSpan.classList.add('text-orange-700', 'font-bold');
+                         } else {
+                            wordSpan.classList.remove('text-orange-700', 'font-bold');
+                         }
+                    }
+                });
+            });
+
+            // Evento disparado quando o áudio é pausado (pelo usuário ou pelo código)
+            audioPlayer.addEventListener('pause', () => {
+                if (currentPlayingIndex !== null) {
+                    updateButtonState(currentPlayingIndex, 'paused');
+                    clearHighlights(currentPlayingIndex);
+                    currentPlayingIndex = null;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
